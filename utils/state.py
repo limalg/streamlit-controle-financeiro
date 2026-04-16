@@ -8,7 +8,6 @@ def init_state() -> None:
         'user': None,
         'wallet_id': None,
         'carteira_atual': None,
-        'apenas_fixos': False,
         'show_transfer': False,
         'show_close_month': False,
         'filter_date_start': None,

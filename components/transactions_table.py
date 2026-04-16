@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from datetime import date as date_type, timedelta
 from database.repository import register_transaction, delete_transaction, update_transaction
 from utils.state import get_state
 
@@ -110,7 +109,7 @@ def edit_delete_dialog(transacao: dict, row_idx: int):
                 try:
                     data_atual = pd.to_datetime(transacao.get("data")).date()
                 except Exception:
-                    data_atual = date_type.today()
+                    data_atual = pd.Timestamp.now().date()
                 data = st.date_input("Data", value=data_atual)
             with c4:
                 is_fixo = st.checkbox("Custo Fixo", value=bool(transacao.get("is_fixo", False)))
@@ -153,52 +152,11 @@ def edit_delete_dialog(transacao: dict, row_idx: int):
                 st.rerun()
 
 
-def render_date_filter(df: pd.DataFrame) -> pd.DataFrame:
-    """Renderiza filtro de período e retorna o df filtrado."""
-    with st.expander("🗓️ Filtrar por Período", expanded=False):
-        hoje = date_type.today()
-        
-        # Inicializa valores no state se estiverem vazios
-        if st.session_state.get("filter_date_start") is None:
-            st.session_state["filter_date_start"] = hoje.replace(day=1)
-        if st.session_state.get("filter_date_end") is None:
-            st.session_state["filter_date_end"] = hoje
-
-        # Lógica de reset
-        col1, col2, col3 = st.columns([1, 1, 2])
-        with col3:
-            st.write("") 
-            if st.button("Limpar filtro", key="btn_limpar_periodo"):
-                st.session_state["filter_date_start"] = hoje.replace(day=1)
-                st.session_state["filter_date_end"] = hoje
-                st.rerun()
-
-        # Widgets vinculados DIRETAMENTE ao state via key
-        with col1:
-            data_inicio = st.date_input(
-                "De:", 
-                key="filter_date_start",
-                on_change=None # O valor já vai pro state automaticamente
-            )
-        with col2:
-            data_fim = st.date_input(
-                "Até:", 
-                key="filter_date_end"
-            )
-
-        if 'data' in df.columns:
-            # Garante que estamos comparando tipos compatíveis (date objects)
-            mask = (df['data'].dt.date >= data_inicio) & (df['data'].dt.date <= data_fim)
-            df = df[mask]
-
-    return df
-
-
 def render_transaction_table(transacoes: list) -> None:
-    """Renderiza a tabela de transações com filtro de data e paginação."""
+    """Renderiza a tabela usando transações já filtradas enviadas pelo app.py."""
     col_title, col_btn = st.columns([0.8, 0.2])
     with col_title:
-        st.subheader("📝 Últimas Transações")
+        st.subheader("📝 Transações no Período")
     with col_btn:
         wallet_id = get_state("wallet_id")
         if wallet_id and st.button("➕ Adicionar", type="primary", width="stretch"):
@@ -206,41 +164,33 @@ def render_transaction_table(transacoes: list) -> None:
             st.rerun()
 
     if not transacoes:
-        st.info("📭 Nenhuma transação encontrada.")
+        st.info("📭 Nenhuma transação encontrada no período selecionado.")
         return
 
-    df = pd.DataFrame(transacoes)
+    df_page = pd.DataFrame(transacoes)
 
-    if 'data' in df.columns:
-        df['data'] = pd.to_datetime(df['data'], errors='coerce')
-    if 'valor' in df.columns:
-        df['valor'] = pd.to_numeric(df['valor'], errors='coerce')
+    if 'data' in df_page.columns:
+        df_page['data'] = pd.to_datetime(df_page['data'], errors='coerce')
+    if 'valor' in df_page.columns:
+        df_page['valor'] = pd.to_numeric(df_page['valor'], errors='coerce')
 
-    df = df.sort_values('data', ascending=False).reset_index(drop=True)
+    df_page = df_page.sort_values('data', ascending=False).reset_index(drop=True)
 
-    # Filtro de período
-    df = render_date_filter(df)
-    df = df.reset_index(drop=True)
-
-    total_rows = len(df)
-
-    if total_rows == 0:
-        st.info("📭 Nenhuma transação no período selecionado.")
-        return
+    total_rows = len(df_page)
 
     # Paginação
     total_pages = max(1, (total_rows + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE)
     current_page = st.session_state.get("table_page", 1)
-    current_page = min(current_page, total_pages)  # garante validade após filtro
+    current_page = min(current_page, total_pages)
 
     start = (current_page - 1) * ROWS_PER_PAGE
     end = start + ROWS_PER_PAGE
-    df_page = df.iloc[start:end].copy()
-    df_page = df_page.reset_index(drop=True)
+    df_view_page = df_page.iloc[start:end].copy()
+    df_view_page = df_view_page.reset_index(drop=True)
 
-    df_page.insert(0, 'Ação', '✏️ / 🗑️')
-    colunas_validas = [c for c in ['Ação', 'data', 'metodo_pagamento', 'descricao', 'categoria', 'valor', 'status'] if c in df_page.columns]
-    df_view = df_page[colunas_validas].copy()
+    df_view_page.insert(0, 'Ação', '✏️ / 🗑️')
+    colunas_validas = [c for c in ['Ação', 'data', 'metodo_pagamento', 'descricao', 'categoria', 'valor', 'status'] if c in df_view_page.columns]
+    df_view = df_view_page[colunas_validas].copy()
 
     # Legenda + info de paginação
     col_caption, col_info = st.columns([0.6, 0.4])
@@ -287,8 +237,7 @@ def render_transaction_table(transacoes: list) -> None:
         new_transaction_dialog(wallet_id)
     elif event and getattr(event, 'selection', None) and len(event.selection.rows) > 0:
         row_idx = event.selection.rows[0]
-        selected_trans = df_page.iloc[row_idx].to_dict()
+        selected_trans = df_view_page.iloc[row_idx].to_dict()
         edit_delete_dialog(selected_trans, row_idx)
     else:
-        # Se nada estiver selecionado ou o diálogo foi fechado, limpa o estado
         st.session_state.pop("dismissed_row", None)

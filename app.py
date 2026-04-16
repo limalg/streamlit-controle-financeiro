@@ -45,30 +45,40 @@ def main():
     st.divider()
 
     # Carrega transações baseadas na carteira atual
-    transacoes = load_transactions(wallet_id)
+    transacoes_originais = load_transactions(wallet_id)
     
-    # Aplica filtro dinâmico
-    if apenas_fixos and transacoes:
-        transacoes = [t for t in transacoes if isinstance(t, dict) and t.get('is_fixo')]
-        
-    # Processa e renderiza KPIs
-    render_kpi_cards(transacoes, carteira_atual)
+    # 3. LÓGICA DE FILTRAGEM GLOBAL (Data)
+    import pandas as pd
+    df_temp = pd.DataFrame(transacoes_originais)
+    
+    date_start = get_state("filter_date_start")
+    date_end = get_state("filter_date_end")
+    
+    if not df_temp.empty and date_start and date_end:
+        df_temp['data'] = pd.to_datetime(df_temp['data']).dt.date
+        mask = (df_temp['data'] >= date_start) & (df_temp['data'] <= date_end)
+        transacoes_filtradas = df_temp[mask].to_dict('records')
+    else:
+        transacoes_filtradas = transacoes_originais
+
+    # Processa e renderiza KPIs (Respeita Filtro)
+    render_kpi_cards(transacoes_filtradas, carteira_atual)
     st.divider()
 
-    # Gráfico de gastos por categoria
-    render_category_chart(transacoes)
+    # Gráfico de gastos por categoria (Respeita Filtro)
+    render_category_chart(transacoes_filtradas)
     st.divider()
 
-    # Gráfico de tendência mensal (anos e meses)
-    render_monthly_trend_chart(transacoes)
+    # Gráfico de tendência mensal (Ignora Datas do Filtro, Respeita Carteira)
+    render_monthly_trend_chart(transacoes_originais)
     st.divider()
     
-    # Processa e renderiza a Tabela
-    render_transaction_table(transacoes)
+    # Processa e renderiza a Tabela (Respeita Filtro)
+    render_transaction_table(transacoes_filtradas)
     st.divider()
     
-    # Processa e renderiza a Previsão
-    render_forecast(transacoes)
+    # Processa e renderiza a Previsão (Respeita Filtro)
+    render_forecast(transacoes_filtradas)
     
 
 
