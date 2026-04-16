@@ -1,0 +1,17 @@
+# Ambientes Virtuais
+venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Streamlit secrets (Importante de não subir credentials!)
+.streamlit/secrets.toml
+
+# OS Files
+.DS_Store
+Thumbs.db
