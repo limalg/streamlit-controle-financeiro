@@ -58,14 +58,5 @@ def render_sidebar(carteiras: list) -> None:
         set_state("apenas_fixos", novo_filtro)
         
         st.divider()
-        
-        # Botões de Ação
-        if st.button("🔄 Transferir entre Carteiras", use_container_width=True):
-            set_state("show_transfer", True)
-            
-        if st.button("📊 Fechar Mês", type="primary", use_container_width=True):
-            set_state("show_close_month", True)
-            
-        st.divider()
         render_logout_button()
 

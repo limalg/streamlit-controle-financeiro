@@ -10,7 +10,10 @@ def init_state() -> None:
         'carteira_atual': None,
         'apenas_fixos': False,
         'show_transfer': False,
-        'show_close_month': False
+        'show_close_month': False,
+        'filter_date_start': None,
+        'filter_date_end': None,
+        'show_dialog': None
     }
     
     for key, value in defaults.items():

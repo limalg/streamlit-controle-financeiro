@@ -11,35 +11,10 @@ st.set_page_config(
 from utils.state import init_state, get_state, set_state
 from components.auth import render_login
 from components.sidebar import render_sidebar
-from components.dashboard import render_kpi_cards, render_forecast
+from components.dashboard import render_kpi_cards, render_forecast, render_category_chart, render_monthly_trend_chart
 from components.transactions_table import render_transaction_table
 from database.repository import load_wallets, load_transactions
 
-def render_transfer_modal(carteiras: list) -> None:
-    """Renderiza a simulação de modal de transferência (na sidebar) se ativo."""
-    if get_state('show_transfer'):
-        with st.sidebar:
-            st.divider()
-            st.subheader("🔄 Transferência")
-            
-            # Formata opções para os selectors
-            opcoes = {c['nome_carteira']: c['id'] for c in carteiras if isinstance(c, dict)}
-            
-            origem = st.selectbox("Origem:", options=list(opcoes.keys()))
-            destino = st.selectbox("Destino:", options=[k for k in opcoes.keys() if k != origem])
-            valor = st.number_input("Valor:", min_value=0.01, step=0.01)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Confirmar", key="btn_confirm_transfer"):
-                    st.success(f"Transferência de R$ {valor:,.2f} realizada!")
-                    set_state('show_transfer', False)
-                    # Força rerun para limpar estado de tela
-                    st.rerun()
-            with col2:
-                if st.button("Cancelar", key="btn_cancel_transfer"):
-                    set_state('show_transfer', False)
-                    st.rerun()
 
 
 def main():
@@ -79,6 +54,14 @@ def main():
     # Processa e renderiza KPIs
     render_kpi_cards(transacoes, carteira_atual)
     st.divider()
+
+    # Gráfico de gastos por categoria
+    render_category_chart(transacoes)
+    st.divider()
+
+    # Gráfico de tendência mensal (anos e meses)
+    render_monthly_trend_chart(transacoes)
+    st.divider()
     
     # Processa e renderiza a Tabela
     render_transaction_table(transacoes)
@@ -87,9 +70,8 @@ def main():
     # Processa e renderiza a Previsão
     render_forecast(transacoes)
     
-    # Renderiza possíveis modais de ações baseados no State
-    render_transfer_modal(carteiras)
-    
+
+
 
 if __name__ == "__main__":
     main()

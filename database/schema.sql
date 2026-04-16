@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     data DATE NOT NULL DEFAULT CURRENT_DATE,
     is_fixo BOOLEAN DEFAULT FALSE,
     status TEXT CHECK (status IN ('pago', 'pendente')) DEFAULT 'pendente',
+    metodo_pagamento TEXT CHECK (metodo_pagamento IN ('dinheiro', 'debito', 'credito')) DEFAULT 'dinheiro',
+    parcela_atual INTEGER DEFAULT 1,
+    total_parcelas INTEGER DEFAULT 1,
+    group_id UUID, -- Usado para identificar parcelas da mesma compra
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
 );
 
@@ -90,7 +94,7 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Usuário vê a si próprio" ON public.users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Usuário edita a si próprio" ON public.users FOR UPDATE USING (auth.uid() = id);
 
--- wallets: O usuário pode ver a carteira se: For dono (owner_id) OU estiver em wallet_members
+-- wallets: O usuário pode ver a carteira se for dono (owner_id) ou membro
 CREATE POLICY "Acesso à carteiras: Dono ou Membro" ON public.wallets FOR SELECT
 USING (
   auth.uid() = owner_id 
@@ -99,17 +103,14 @@ USING (
 CREATE POLICY "Inserção na carteira apenas próprio usr" ON public.wallets FOR INSERT WITH CHECK (auth.uid() = owner_id);
 CREATE POLICY "Atualização/Deleção de carteiras pelo dono" ON public.wallets FOR ALL USING (auth.uid() = owner_id);
 
--- wallet_members: donos podem ver quem está na carteira
+-- wallet_members: o usuário só vê sua própria membresia (evita recursão infinita no banco)
 CREATE POLICY "Membros da carteira visiveis" ON public.wallet_members FOR SELECT USING (
-  wallet_id IN (SELECT id FROM public.wallets WHERE owner_id = auth.uid() OR id IN (SELECT wallet_id FROM public.wallet_members WHERE user_id = auth.uid()))
+  user_id = auth.uid()
 );
 
--- transactions: O usuário pode ver/inserir em carteiras que ele tem acesso
-CREATE POLICY "Ver e inserir em Transações da carteira permitida" ON public.transactions FOR ALL
-USING (
-  wallet_id IN (
-    SELECT id FROM public.wallets WHERE owner_id = auth.uid() 
-    UNION 
-    SELECT wallet_id FROM public.wallet_members WHERE user_id = auth.uid()
-  )
+-- transactions: O usuário pode ver/inserir em transações cujas carteiras aparecem pra ele
+-- Como a engine do PostgreSQL já roda a Policy de 'wallets' silenciosamente quando fazemos o select, 
+-- basta validar se ele tem resposta pro ID da carteira envolvida. Evita recursão infinita!
+CREATE POLICY "Ver e Inserir Transacoes" ON public.transactions FOR ALL USING (
+  wallet_id IN (SELECT id FROM public.wallets)
 );
