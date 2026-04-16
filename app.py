@@ -8,6 +8,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
 from utils.state import init_state, get_state, set_state
 from components.auth import render_login
 from components.sidebar import render_sidebar
