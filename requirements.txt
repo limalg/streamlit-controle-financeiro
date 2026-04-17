@@ -1,4 +1,6 @@
 streamlit==1.56.0
 supabase==2.28.3
 pandas==3.0.2
-python-dotenv==1.0.0plotly
+python-dotenv==1.0.1
+plotly==6.7.0
+python-dateutil==2.9.0
