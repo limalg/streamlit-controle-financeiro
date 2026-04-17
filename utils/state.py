@@ -12,7 +12,8 @@ def init_state() -> None:
         'show_close_month': False,
         'filter_date_start': None,
         'filter_date_end': None,
-        'show_dialog': None
+        'show_dialog': None,
+        'active_page': '📑 Transações'
     }
     
     for key, value in defaults.items():

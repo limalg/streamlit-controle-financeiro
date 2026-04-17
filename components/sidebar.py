@@ -6,8 +6,9 @@ from datetime import date as date_type
 def render_sidebar(carteiras: list) -> None:
     """Sidebar centralizada para wallet e filtros globais."""
     with st.sidebar:
-        st.title("💰 Carteira")
-        
+        st.title("💰 Finance")
+        st.divider()
+
         if not carteiras:
             st.warning("Nenhuma carteira disponível")
             set_state("wallet_id", None)
@@ -15,7 +16,8 @@ def render_sidebar(carteiras: list) -> None:
             render_logout_button()
             return
             
-        # 1. SELEÇÃO DE CARTEIRA
+        # 1. SELEÇÃO DE CARTEIRA (Agora no TOPO)
+        st.subheader("💳 Conta")
         opcoes_nomes = []
         id_map = {}
         for c in carteiras:
@@ -37,7 +39,8 @@ def render_sidebar(carteiras: list) -> None:
             "Alternar Conta:",
             options=opcoes_nomes,
             index=current_index,
-            key="sb_wallet_select"
+            key="sb_wallet_select",
+            label_visibility="collapsed"
         )
         
         selected_id = id_map[wallet_label]
@@ -47,17 +50,27 @@ def render_sidebar(carteiras: list) -> None:
         set_state("wallet_id", selected_id)
         set_state("carteira_atual", carteira_atual)
         
-        if carteira_atual:
-            saldo = float(carteira_atual.get('saldo', 0))
-            st.metric("Saldo Disponível", f"R$ {saldo:,.2f}")
+        # REMOVIDO: st.metric("Saldo Disponível", ...) como solicitado pelo usuário
             
         st.divider()
+
+        # 2. MENU DE NAVEGAÇÃO
+        st.subheader("🧭 Menu")
+        active_page = st.radio(
+            "Selecione a página",
+            ["📑 Transações", "📊 Gráficos", "📈 Projeção", "💸 Contas"],
+            index=["📑 Transações", "📊 Gráficos", "📈 Projeção", "💸 Contas"].index(get_state("active_page", "📑 Transações")),
+            label_visibility="collapsed",
+            key="nav_radio"
+        )
+        set_state("active_page", active_page)
         
-        # 2. FILTRO DE PERÍODO (Sempre Aberto no Sidebar)
+        st.divider()
+        
+        # 3. FILTRO DE PERÍODO
         st.subheader("🗓️ Período")
         hoje = date_type.today()
         
-        # Inicialização local caso ainda não esteja no state
         if st.session_state.get("filter_date_start") is None:
             st.session_state["filter_date_start"] = hoje.replace(day=1)
         if st.session_state.get("filter_date_end") is None:

@@ -13,12 +13,12 @@ from components.auth import render_login
 from components.sidebar import render_sidebar
 from components.dashboard import render_kpi_cards, render_forecast, render_category_chart, render_monthly_trend_chart
 from components.transactions_table import render_transaction_table
+from components.wallets import render_wallet_management
 from database.repository import load_wallets, load_transactions
 
 
-
 def main():
-    """Ponto de entrada principal da aplicação modular."""
+    """Roteador principal da aplicação multipáginas."""
     
     # Inicia estado padrão
     init_state()
@@ -34,23 +34,13 @@ def main():
     
     wallet_id = get_state("wallet_id")
     carteira_atual = get_state("carteira_atual")
-    apenas_fixos = get_state("apenas_fixos")
+    active_page = get_state("active_page", "📑 Transações")
     
-    # Cabeçalho da página principal
-    if carteira_atual:
-        st.header(f"Dashboard - {carteira_atual.get('nome_carteira', 'Desconhecida')}")
-    else:
-        st.header("Dashboard Geral")
-        
-    st.divider()
-
-    # Carrega transações baseadas na carteira atual
+    # Carregamento e filtragem de dados
     transacoes_originais = load_transactions(wallet_id)
     
-    # 3. LÓGICA DE FILTRAGEM GLOBAL (Data)
     import pandas as pd
     df_temp = pd.DataFrame(transacoes_originais)
-    
     date_start = get_state("filter_date_start")
     date_end = get_state("filter_date_end")
     
@@ -61,26 +51,44 @@ def main():
     else:
         transacoes_filtradas = transacoes_originais
 
-    # Processa e renderiza KPIs (Respeita Filtro)
-    render_kpi_cards(transacoes_filtradas, carteira_atual)
-    st.divider()
-
-    # Gráfico de gastos por categoria (Respeita Filtro)
-    render_category_chart(transacoes_filtradas)
-    st.divider()
-
-    # Gráfico de tendência mensal (Ignora Datas do Filtro, Respeita Carteira)
-    render_monthly_trend_chart(transacoes_originais)
-    st.divider()
+    # -- ROTEAMENTO DE PÁGINAS --
     
-    # Processa e renderiza a Tabela (Respeita Filtro)
-    render_transaction_table(transacoes_filtradas)
-    st.divider()
-    
-    # Processa e renderiza a Previsão (Respeita Filtro)
-    render_forecast(transacoes_filtradas)
-    
+    if active_page == "📑 Transações":
+        st.header(f"📑 Transações - {carteira_atual.get('nome_carteira', '') if carteira_atual else ''}")
+        # KPIs Premium
+        render_kpi_cards(transacoes_filtradas, carteira_atual)
+        st.divider()
+        # Tabela
+        render_transaction_table(transacoes_filtradas)
 
+    elif active_page == "📊 Gráficos":
+        st.header("📊 Inteligência Financeira")
+        
+        # 1. Tendência (Empilhado)
+        render_monthly_trend_chart(transacoes_originais)
+        st.divider()
+
+        # 2. Categorias (Empilhado)
+        render_category_chart(transacoes_filtradas)
+        st.divider()
+
+        # 3. Pizzas de Detalhamento (Lado a Lado)
+        col_pie1, col_pie2 = st.columns(2)
+        with col_pie1:
+            from components.dashboard import render_payment_method_pie
+            render_payment_method_pie(transacoes_filtradas)
+        with col_pie2:
+            from components.dashboard import render_fixed_cost_pie
+            render_fixed_cost_pie(transacoes_filtradas)
+        
+    elif active_page == "📈 Projeção":
+        st.header("📈 Projeções e Metas")
+        render_forecast(transacoes_filtradas)
+
+    elif active_page == "💸 Contas":
+        render_wallet_management()
+
+    st.divider()
 
 
 if __name__ == "__main__":

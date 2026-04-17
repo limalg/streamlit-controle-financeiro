@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS public.wallets (
     nome_carteira TEXT NOT NULL,
     tipo TEXT CHECK (tipo IN ('pessoal', 'grupo')) DEFAULT 'pessoal',
     saldo DECIMAL(12,2) DEFAULT 0.00,
+    invite_code TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
 );
@@ -51,13 +53,26 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
 );
 
+CREATE TABLE IF NOT EXISTS public.pending_invites (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    wallet_id UUID REFERENCES public.wallets(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    invited_by UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '7 days'),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+    UNIQUE(wallet_id, email)
+);
+
 -- --------------------------------------------------------
 -- 3. AUTOMATIZAÇÃO: Criação de usuário na tabela "public.users" 
 -- ao registrar no "auth.users" nativo do Supabase.
 -- --------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
+DECLARE
+    invite_record RECORD;
 BEGIN
+  -- 1. Cria o usuário na tabela public
   INSERT INTO public.users (id, email, nome)
   VALUES (
     new.id, 
@@ -65,7 +80,20 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1))
   );
   
-  -- Cria uma carteira "Pessoal" padrão para o novo usuário
+  -- 2. Busca e resgata convites pendentes (Não expirados)
+  FOR invite_record IN 
+      SELECT wallet_id FROM public.pending_invites 
+      WHERE LOWER(email) = LOWER(new.email) AND expires_at > NOW()
+  LOOP
+      INSERT INTO public.wallet_members (wallet_id, user_id)
+      VALUES (invite_record.wallet_id, new.id)
+      ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- 3. Limpa convites processados
+  DELETE FROM public.pending_invites WHERE LOWER(email) = LOWER(new.email);
+
+  -- 4. Cria uma carteira "Pessoal" padrão para o novo usuário
   INSERT INTO public.wallets (owner_id, nome_carteira, tipo, saldo)
   VALUES (new.id, 'Carteira Pessoal', 'pessoal', 0.00);
   
